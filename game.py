@@ -1,7 +1,8 @@
+import random
 from enum import Enum
 
 
-class bcolors:
+class Bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
@@ -28,13 +29,14 @@ class Token:
 
 
 class Tokens(Enum):
-    P1 = Token('P1', bcolors.RED)
-    P2 = Token('P2', bcolors.YELLOW)
+    P1 = Token('P1', Bcolors.RED)
+    P2 = Token('P2', Bcolors.YELLOW)
 
 
 class Player:
-    def __init__(self, name, token = Tokens.P1.value) -> None:
+    def __init__(self, name: str, tag: str, token=Tokens.P1.value) -> None:
         self.name = name
+        self.tag = tag
         self.token = token
 
     def get_token(self):
@@ -42,6 +44,9 @@ class Player:
 
     def get_username(self):
         return self.name
+
+    def get_tag(self):
+        return self.tag
 
 
 class BoardTile(Enum):
@@ -63,12 +68,12 @@ class Board:
         for row in self.board:
             for tile in row:
                 if isinstance(tile, Token):
-                    result += f'║{tile.get_color()}{BoardTile.TOKEN.value}{bcolors.ENDC}'
+                    result += f'║{tile.get_color()}{BoardTile.TOKEN.value}{Bcolors.ENDC}'
                 elif tile is None:
                     result += '║' + BoardTile.EMPTY.value
             result += '║\n'
 
-        result += '╚══' + '══'* (self.width - 2) + '═╝\n'
+        result += '╚══' + '══' * (self.width - 2) + '═╝\n'
         header_numbers = ' '.join(str(x) for x in range(1, self.width + 1))
         result += ' ' + header_numbers + ' '
 
@@ -133,7 +138,6 @@ class Board:
         count = 0
         current_row, current_col = start[0], start[1]
         while True:
-            print(f'current: {current_row}, {current_col}')
             tile = self.board[current_row][current_col]
             if tile is not None and tile.get_color() == token_color:
                 count += 1
@@ -143,52 +147,102 @@ class Board:
                 break
             current_row += row_offset
             current_col += col_offset
-        print('-'*20)
+
         return count == conn_length
-
-
-class ConnectFour:
-    def __init__(self, renderer) -> None:
-        self.renderer = renderer
-    
-    def run(self) -> None:
-        print('Game is running!!!')
-
-
-class LetterSize(Enum):
-    SMALL = 0,
-    MEDIUM = 1,
-    LARGE = 2
 
 
 class ConsoleRenderer:
     def __init__(self, game_board) -> None:
         self.game_board = game_board
-    
+
     def render_board(self) -> None:
         print(self.game_board)
 
-    def render_title_box(sentence) -> None:
-        ConsoleRenderer.draw_sentence(sentence, size = LetterSize.LARGE)
+    @classmethod
+    def render_title_box(cls, sentence) -> None:
+        print(sentence)
 
-    def render_text_box(sentence) -> None:
+    @classmethod
+    def render_text_box(cls, sentence) -> None:
         pass
+
+    @classmethod
+    def render_text(cls, text) -> None:
+        print(text)
+
+
+class ConnectFour:
+    def __init__(self, renderer: ConsoleRenderer, game_board, players: list[Player]) -> None:
+        self.renderer = renderer
+        self.players = players
+        self.game_board = game_board
+        self.player_count = len(self.players)
+
+    def run(self) -> None:
+        self.renderer.render_title_box('Welcome to Connect Four!!!')
+
+        continue_running = True
+        current_player = self.players[random.randint(0, self.player_count - 1)]
+        self.renderer.render_board()
+        self.renderer.render_text(f'{current_player.get_tag()} ({current_player.get_username()}) starts the game.')
+        while continue_running:
+            selected_lane = int(input(f'{current_player.get_tag()} ({current_player.get_username()}) places token in lane: '))
+            row, col = self.game_board.place_token(current_player, selected_lane)
+            did_win = self.game_board.check_win_conditon(row, col, 4)
+            self.renderer.render_board()
+
+            # For debugging purposes
+            continue_running = False
+
+
+class ConnectFour2PFactory:
+    def __init__(self) -> None:
+        self.rules = {'username': {'length': {'min': 3, max: 20}}}
+
+    @staticmethod
+    def build() -> ConnectFour:
+        game_board = Board(7, 6)
+        player_name_prompt = '{player} enter your name: '
+        player1_name = input(player_name_prompt.format(player="Player 1"))
+        player2_name = input(player_name_prompt.format(player="Player 2"))
+
+        player1 = Player(player1_name, 'Player 1', Tokens.P1.value)
+        player2 = Player(player2_name, 'Player 2', Tokens.P2.value)
+
+        return ConnectFour(
+            renderer=ConsoleRenderer(game_board),
+            game_board=game_board,
+            players=[player1, player2]
+        )
+
+    def __get_username(self, tag):
+        player_name_prompt = '{tag} enter your name: '
+        keep_trying = True
+        while keep_trying:
+            try:
+                player_name = input(player_name_prompt.format(tag=tag))
+                keep_trying = not self.__validate_username(player_name)
+                return player_name
+            except Exception as e:
+                print(str(e))
+
+    def __validate_username(self, username: str) -> bool:
+        if username is None:
+            raise Exception('Invalid username.')
+
+        username_len = len(username)
+        if username_len == 0:
+            raise Exception('C\'mon... Please enter someting.')
+
+        if username_len < self.rules['username']['length']['min']:
+            raise Exception('Username too short.')
+
+        if username_len > self.rules['username']['length']['max']:
+            raise Exception('Username too long.')
+
+        return True
 
 
 if __name__ == '__main__':
-    game = ConnectFour(None)
+    game = ConnectFour2PFactory.build()
     game.run()
-    board = Board(7, 6)
-
-    player1 = Player('P1', Tokens.P1.value)
-    player2 = Player('P2', Tokens.P2.value)
-
-    board.place_token(player1, 1)
-    board.place_token(player2, 1)
-    board.place_token(player1, 7)
-    board.place_token(player2, 6)
-    row, col = board.place_token(player1, 6)
-
-    print(board)
-    print(f'row: {row} col: {col}')
-    board.check_win_conditon(row, col, 4)
