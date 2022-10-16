@@ -1,4 +1,5 @@
 import random
+from os import system, name
 from enum import Enum
 
 
@@ -143,12 +144,19 @@ class Board:
                 count += 1
             else:
                 count = 0
+
+            if count == conn_length:
+                return True
+
             if current_row == end[0] and current_col == end[1]:
                 break
             current_row += row_offset
             current_col += col_offset
 
-        return count == conn_length
+        return False
+
+    def is_lane_filled(self, col):
+        return self.board[0][col] is not None
 
 
 class ConsoleRenderer:
@@ -156,6 +164,7 @@ class ConsoleRenderer:
         self.game_board = game_board
 
     def render_board(self) -> None:
+        self.__clear()
         print(self.game_board)
 
     @classmethod
@@ -169,6 +178,15 @@ class ConsoleRenderer:
     @classmethod
     def render_text(cls, text) -> None:
         print(text)
+
+    @staticmethod
+    def __clear() -> None:
+        # for windows
+        if name == 'nt':
+            _ = system('cls')
+        # for mac and linux(here, os.name is 'posix')
+        else:
+            _ = system('clear')
 
 
 class ConnectFour:
@@ -194,7 +212,8 @@ class ConnectFour:
             did_win = self.game_board.check_win_conditon(row, col, 4)
             self.renderer.render_board()
             if did_win:
-                self.renderer.render_text(f'{current_player.get_tag()} ({current_player.get_username()}) has won the game!!!')
+                self.renderer.render_text(
+                    f'{current_player.get_tag()} ({current_player.get_username()}) has won the game!!!')
                 continue_running = False
             else:
                 player_idx = (player_idx + 1) % self.player_count
@@ -223,6 +242,11 @@ class ConnectFour:
         lane_num = int(lane_input)
         if lane_num < self.rules['lane']['min'] or lane_num > self.rules['lane']['max']:
             return False, 'But fails to do so, because he\'s trolling and entering non existent lane number.\n' \
+                          'And so again, he tries placing a token in a lane: '
+
+        print(self.game_board.is_lane_filled(lane_num - 1))
+        if self.game_board.is_lane_filled(lane_num - 1):
+            return False, 'But fails to do so, because the lane is filled to the top.\n' \
                           'And so again, he tries placing a token in a lane: '
 
         return True, ''
