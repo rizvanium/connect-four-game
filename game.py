@@ -116,7 +116,7 @@ class Board:
         bottom_left = (row + offset_bottom_left, col - offset_bottom_left)
         bottom_right = (row + offset_bottom_right, col + offset_bottom_right)
         top_left = (row - offset_top_left, col - offset_top_left)
-        top_right = (row - offset_top_right, col + offset_bottom_right)
+        top_right = (row - offset_top_right, col + offset_top_right)
 
         if self.contains_same_color_tokens(token_color, left, right, conn_length):
             return True
@@ -182,18 +182,23 @@ class ConnectFour:
     def run(self) -> None:
         self.renderer.render_title_box('Welcome to Connect Four!!!')
 
-        continue_running = True
-        current_player = self.players[random.randint(0, self.player_count - 1)]
+        player_idx = random.randint(0, self.player_count - 1)
+        current_player = self.players[player_idx]
         self.renderer.render_board()
         self.renderer.render_text(f'{current_player.get_tag()} ({current_player.get_username()}) starts the game.')
+
+        continue_running = True
         while continue_running:
             selected_lane = self.__get_lane(current_player)
             row, col = self.game_board.place_token(current_player, selected_lane)
             did_win = self.game_board.check_win_conditon(row, col, 4)
             self.renderer.render_board()
-
-            # For debugging purposes
-            continue_running = False
+            if did_win:
+                self.renderer.render_text(f'{current_player.get_tag()} ({current_player.get_username()}) has won the game!!!')
+                continue_running = False
+            else:
+                player_idx = (player_idx + 1) % self.player_count
+                current_player = self.players[player_idx]
 
     def __get_lane(self, current_player: Player) -> int:
         tag, username = current_player.get_tag(), current_player.get_username()
