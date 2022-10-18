@@ -18,14 +18,14 @@ class Bcolors:
 
 
 class Token:
-    def __init__(self, name, color_val):
-        self.name = name
+    def __init__(self, token_name: str, color_val: str) -> None:
+        self.name = token_name
         self.color = color_val
 
-    def get_name(self):
+    def get_name(self) -> str:
         return self.name
 
-    def get_color(self):
+    def get_color(self) -> str:
         return self.color
 
 
@@ -35,25 +35,25 @@ class Tokens(Enum):
 
 
 class Player:
-    def __init__(self, name: str, tag: str, token=Tokens.P1.value) -> None:
-        self.name = name
+    def __init__(self, player_name: str, tag: str, token=Tokens.P1.value) -> None:
+        self.name = player_name
         self.tag = tag
         self.token = token
 
-    def get_token(self):
+    def get_token(self) -> Token:
         return self.token
 
-    def get_username(self):
+    def get_username(self) -> str:
         return self.name
 
-    def get_tag(self):
+    def get_tag(self) -> str:
         return self.tag
 
 
 class BoardTile(Enum):
     EMPTY = '●'
     TOKEN = '●'
-    CONNECTED = '◉'
+    CONNECTED = '◎'
 
 
 class Board:
@@ -62,23 +62,6 @@ class Board:
         self.length = length
         self.board = [[None] * width for _ in range(length)]
         self.token_positions = {}
-
-    def __repr__(self):
-        result = '╔══' + '══' * (self.width - 2) + '═╗\n'
-
-        for row in self.board:
-            for tile in row:
-                if isinstance(tile, Token):
-                    result += f'║{tile.get_color()}{BoardTile.TOKEN.value}{Bcolors.ENDC}'
-                elif tile is None:
-                    result += '║' + BoardTile.EMPTY.value
-            result += '║\n'
-
-        result += '╚══' + '══' * (self.width - 2) + '═╝\n'
-        header_numbers = ' '.join(str(x) for x in range(1, self.width + 1))
-        result += ' ' + header_numbers + ' '
-
-        return result
 
     def place_token(self, player: Player, lane: int) -> tuple[int, int]:
         col = lane - 1
@@ -92,7 +75,7 @@ class Board:
 
         raise Exception(f'{lane} lane is filled, try other lane.')
 
-    def check_win_conditon(self, row: int, col: int, conn_length: int) -> bool:
+    def check_win_conditon(self, row: int, col: int, conn_length: int) -> tuple[bool, list[tuple[int, int]]]:
         token = self.board[row][col]
         if token is None:
             return False
@@ -119,18 +102,27 @@ class Board:
         top_left = (row - offset_top_left, col - offset_top_left)
         top_right = (row - offset_top_right, col + offset_top_right)
 
-        if self.contains_same_color_tokens(token_color, left, right, conn_length):
-            return True
+        game_has_ended, connected_tiles = self.contains_same_color_tokens(token_color, left, right, conn_length)
+        if game_has_ended:
+            return game_has_ended, connected_tiles
 
-        if self.contains_same_color_tokens(token_color, top, bottom, conn_length):
-            return True
+        game_has_ended, connected_tiles = self.contains_same_color_tokens(token_color, top, bottom, conn_length)
+        if game_has_ended:
+            return game_has_ended, connected_tiles
 
-        if self.contains_same_color_tokens(token_color, bottom_left, top_right, conn_length):
-            return True
+        game_has_ended, connected_tiles = self.contains_same_color_tokens(token_color, bottom_left, top_right,
+                                                                          conn_length)
+        if game_has_ended:
+            return game_has_ended, connected_tiles
 
-        return self.contains_same_color_tokens(token_color, top_left, bottom_right, conn_length)
+        game_has_ended, connected_tiles = self.contains_same_color_tokens(token_color, top_left, bottom_right,
+                                                                          conn_length)
+        if game_has_ended:
+            return game_has_ended, connected_tiles
 
-    def contains_same_color_tokens(self, token_color, start, end, conn_length):
+        return False, []
+
+    def contains_same_color_tokens(self, token_color, start, end, conn_length) -> tuple[bool, list[tuple[int, int]]]:
         row_diff = start[0] - end[0]
         col_diff = start[1] - end[1]
 
@@ -138,34 +130,54 @@ class Board:
         col_offset = 0 if col_diff == 0 else 1 if col_diff < 0 else - 1
         count = 0
         current_row, current_col = start[0], start[1]
+        conencted_tiles = []
         while True:
             tile = self.board[current_row][current_col]
             if tile is not None and tile.get_color() == token_color:
                 count += 1
+                conencted_tiles.append((current_row, current_col))
             else:
+                conencted_tiles.clear()
                 count = 0
 
             if count == conn_length:
-                return True
+                return True, conencted_tiles
 
             if current_row == end[0] and current_col == end[1]:
                 break
+
             current_row += row_offset
             current_col += col_offset
 
-        return False
+        return False, conencted_tiles
 
     def is_lane_filled(self, col):
         return self.board[0][col] is not None
 
 
 class ConsoleRenderer:
-    def __init__(self, game_board) -> None:
+    def __init__(self, game_board: Board) -> None:
         self.game_board = game_board
 
-    def render_board(self) -> None:
+    def render_board(self, game_ended: bool, connected_tiles: list[tuple[int, int]]) -> None:
+        result = '╔══' + '══' * (self.game_board.width - 2) + '═╗\n'
+
+        for row_idx, row in enumerate(self.game_board.board):
+            for col_idx, tile in enumerate(row):
+                if tile is None:
+                    result += '║' + BoardTile.EMPTY.value
+                elif game_ended and (row_idx, col_idx) in connected_tiles: \
+                        result += f'║{tile.get_color()}{BoardTile.CONNECTED.value}{Bcolors.ENDC}'
+                else:
+                    result += f'║{tile.get_color()}{BoardTile.TOKEN.value}{Bcolors.ENDC}'
+            result += '║\n'
+
+        result += '╚══' + '══' * (self.game_board.width - 2) + '═╝\n'
+        header_numbers = ' '.join(str(x) for x in range(1, self.game_board.width + 1))
+        result += ' ' + header_numbers + ' '
+
         self.__clear()
-        print(self.game_board)
+        print(result)
 
     @classmethod
     def render_title_box(cls, sentence) -> None:
@@ -202,16 +214,16 @@ class ConnectFour:
 
         player_idx = random.randint(0, self.player_count - 1)
         current_player = self.players[player_idx]
-        self.renderer.render_board()
+        self.renderer.render_board(game_ended=False, connected_tiles=[])
         self.renderer.render_text(f'{current_player.get_tag()} ({current_player.get_username()}) starts the game.')
 
         continue_running = True
         while continue_running:
             selected_lane = self.__get_lane(current_player)
             row, col = self.game_board.place_token(current_player, selected_lane)
-            did_win = self.game_board.check_win_conditon(row, col, 4)
-            self.renderer.render_board()
-            if did_win:
+            game_ended, connected_tiles = self.game_board.check_win_conditon(row, col, 4)
+            self.renderer.render_board(game_ended, connected_tiles)
+            if game_ended:
                 self.renderer.render_text(
                     f'{current_player.get_tag()} ({current_player.get_username()}) has won the game!!!')
                 continue_running = False
@@ -244,7 +256,6 @@ class ConnectFour:
             return False, 'But fails to do so, because he\'s trolling and entering non existent lane number.\n' \
                           'And so again, he tries placing a token in a lane: '
 
-        print(self.game_board.is_lane_filled(lane_num - 1))
         if self.game_board.is_lane_filled(lane_num - 1):
             return False, 'But fails to do so, because the lane is filled to the top.\n' \
                           'And so again, he tries placing a token in a lane: '
